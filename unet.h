@@ -33,14 +33,14 @@ struct UNetImpl : nn::Module {
             register_module("downsampling"+std::to_string(level),downsampling.back());
         }
 
-        lowestBlock=nn::Sequential(
+        bottleneck=nn::Sequential(
                         nn::Conv2d(nn::Conv2dOptions(featureChannels*(1<<(levels-1)), featureChannels*(1<<levels), 3).padding(1)),
                         nn::ReLU(),
                         nn::Dropout2d(dropout),
                         nn::Conv2d(nn::Conv2dOptions(featureChannels*(1<<levels), featureChannels*(1<<levels), 3).padding(1)),
                         nn::ReLU()
                     );
-        register_module("lowestBlock",lowestBlock);
+        register_module("bottleneck",bottleneck);
 
         for(int level=levels-1; level>=0; level--)
         {
@@ -64,7 +64,7 @@ struct UNetImpl : nn::Module {
     torch::Tensor forward(const torch::Tensor& inputTensor) {
         std::vector<Tensor> contractingTensor(levels);
         std::vector<Tensor> downsamplingTensor(levels);
-        Tensor lowestBlockTensor;
+        Tensor bottleneckTensor;
         std::vector<Tensor> upsamplingTensor(levels);
         std::vector<Tensor> expandingTensor(levels);
         Tensor outputTensor;
@@ -75,11 +75,11 @@ struct UNetImpl : nn::Module {
             downsamplingTensor[level]=downsampling[level]->forward(contractingTensor[level]);
         }
 
-        lowestBlockTensor=lowestBlock->forward(downsamplingTensor.back());
+        bottleneckTensor=bottleneck->forward(downsamplingTensor.back());
 
         for(int level=levels-1; level>=0; level--)
         {
-            upsamplingTensor[level]=upsampling[level]->forward(level==levels-1?lowestBlockTensor:expandingTensor[level+1]);
+            upsamplingTensor[level]=upsampling[level]->forward(level==levels-1?bottleneckTensor:expandingTensor[level+1]);
             expandingTensor[level]=expanding[level]->forward(cat({contractingTensor[level],upsamplingTensor[level]},1));
         }
 
@@ -93,7 +93,7 @@ struct UNetImpl : nn::Module {
                 for(int i=0; i<level; i++) std::cout << " "; std::cout << " contracting" << level << ":  " << contractingTensor[level].sizes() << endl;
                 for(int i=0; i<level; i++) std::cout << " "; std::cout << " downsampling" << level << ": " << downsamplingTensor[level].sizes() << endl;
             }
-            for(int i=0; i<levels; i++) std::cout << " "; std::cout << " lowestBlock:   " << lowestBlockTensor.sizes() << endl;
+            for(int i=0; i<levels; i++) std::cout << " "; std::cout << " bottleneck:    " << bottleneckTensor.sizes() << endl;
             for(int level=levels-1; level>=0; level--)
             {
                 for(int i=0; i<level; i++) std::cout << " "; std::cout << " upsampling" << level << ":  " << upsamplingTensor[level].sizes() << endl;
@@ -114,7 +114,7 @@ struct UNetImpl : nn::Module {
 
     std::deque<nn::Sequential> contracting;
     std::deque<nn::MaxPool2d> downsampling;
-    nn::Sequential lowestBlock;
+    nn::Sequential bottleneck;
     std::deque<nn::ConvTranspose2d> upsampling;
     std::deque<nn::Sequential> expanding;
     nn::Conv2d output{nullptr};
