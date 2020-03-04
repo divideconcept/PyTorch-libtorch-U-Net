@@ -44,7 +44,7 @@ struct UNetImpl : nn::Module {
 
         for(int level=levels-1; level>=0; level--)
         {
-            upsampling.push_front(nn::ConvTranspose2d(nn::ConvTranspose2dOptions(featureChannels*(1<<(level+1)), featureChannels*(1<<level), 3).stride(2).padding(1).output_padding(1)));
+            upsampling.push_front(nn::ConvTranspose2d(nn::ConvTranspose2dOptions(featureChannels*(1<<(level+1)), featureChannels*(1<<level), 2).stride(2)));
             register_module("upsampling"+std::to_string(level),upsampling.front());
 
             expanding.push_front(nn::Sequential(
