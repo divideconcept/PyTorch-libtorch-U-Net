@@ -1,9 +1,10 @@
 #ifndef UNET_H
 #define UNET_H
 
-// Customizable UNet for PyTorch C++/libtorch 1.4 and higher
+// Customizable UNet for PyTorch C++
 // ---------------------------------------------------------
-// Robin Lobel, March 2020
+// Robin Lobel, March 2020 - requires libtorch 1.4 and higher - Qt compatible
+// https://github.com/divideconcept/PyTorch-libtorch-U-Net
 //
 // The default parameters produce the original UNet ( https://arxiv.org/pdf/1505.04597.pdf )
 // You can customize the number of in/out channels, the number of hidden feature channels, the number of levels, and activate improvements such as:
@@ -24,7 +25,7 @@
 
 struct UNetImpl : torch::nn::Module {
     //constructor defaults is the original UNet
-    UNetImpl(int32_t inChannels=1, int32_t outChannels=1, int32_t featureChannels=64, int32_t levels=4, bool padding=false, bool batchNorm=false, bool convolutionDownsampling=false, bool convolutionUpsampling=false)
+    UNetImpl(int32_t inChannels=1, int32_t outChannels=1, int32_t featureChannels=64, int32_t levels=4, bool padding=false, bool batchNorm=false, bool convolutionDownsampling=false, bool convolutionUpsampling=false, bool showSizes=false)
     {
         this->levels=levels;
         paddingSize=padding?1:0;
