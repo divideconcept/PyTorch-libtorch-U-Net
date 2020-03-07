@@ -1,6 +1,19 @@
 #ifndef UNET_H
 #define UNET_H
 
+// Customizable UNet for PyTorch C++/libtorch 1.4 and higher
+// ---------------------------------------------------------
+// Robin Lobel, March 2020
+//
+// The default parameters produce the original UNet ( https://arxiv.org/pdf/1505.04597.pdf )
+// You can customize the number of in/out channels, the number of hidden feature channels, the number of levels, and activate improvements such as:
+// -Zero-Padding ( Imagenet classification with deep convolutional neural networks, A. Krizhevsky, I. Sutskever, and G. E. Hinton ),
+// -BatchNorm after ReLU ( https://arxiv.org/abs/1502.03167 , https://github.com/ducha-aiki/caffenet-benchmark/blob/master/batchnorm.md ),
+// -Strided Convolution instead of Strided Max Pooling for Downsampling ( https://arxiv.org/pdf/1701.03056.pdf , https://arxiv.org/pdf/1412.6806.pdf , https://arxiv.org/pdf/1606.04797.pdf ),
+// -Resize Convolution instead of Strided Deconvolution for Upsampling ( https://distill.pub/2016/deconv-checkerboard/ , https://www.kaggle.com/mpalermo/remove-grideffect-on-generated-images/notebook , https://arxiv.org/pdf/1806.02658.pdf )
+// You can additionally display the size of all internal layers the first time you call forward()
+
+//Qt compatibility
 #ifdef QT_CORE_LIB
     #undef slots
 #endif
@@ -9,65 +22,46 @@
     #define slots Q_SLOTS
 #endif
 
-using namespace torch;
-using namespace std;
-
-struct UNetImpl : nn::Module {
+struct UNetImpl : torch::nn::Module {
     //constructor defaults is the original UNet
-    UNetImpl(int32_t inChannels=1, int32_t outChannels=1, int32_t featureChannels=64, int32_t levels=4, double dropout=0, bool showSizes=false) {
+    UNetImpl(int32_t inChannels=1, int32_t outChannels=1, int32_t featureChannels=64, int32_t levels=4, bool padding=false, bool batchNorm=false, bool convolutionDownsampling=false, bool convolutionUpsampling=false)
+    {
         this->levels=levels;
+        paddingSize=padding?1:0;
         this->showSizes=showSizes;
 
         for(int level=0; level<levels; level++)
         {
-            contracting.push_back(nn::Sequential(
-                                           nn::Conv2d(nn::Conv2dOptions(level==0?inChannels:featureChannels*(1<<(level-1)), featureChannels*(1<<level), 3).padding(1)),
-                                           nn::ReLU(),
-                                           nn::Dropout2d(dropout),
-                                           nn::Conv2d(nn::Conv2dOptions(featureChannels*(1<<level), featureChannels*(1<<level), 3).padding(1)),
-                                           nn::ReLU()
-                                       ));
+            contracting.push_back(levelBlock(level==0?inChannels:featureChannels*(1<<(level-1)), featureChannels*(1<<level), paddingSize, batchNorm));
             register_module("contractingBlock"+std::to_string(level),contracting.back());
 
-            downsampling.push_back(nn::MaxPool2d(nn::MaxPool2dOptions(2).stride(2)));
+            downsampling.push_back(downsamplingBlock(featureChannels*(1<<level),convolutionDownsampling));
             register_module("downsampling"+std::to_string(level),downsampling.back());
         }
 
-        bottleneck=nn::Sequential(
-                        nn::Conv2d(nn::Conv2dOptions(featureChannels*(1<<(levels-1)), featureChannels*(1<<levels), 3).padding(1)),
-                        nn::ReLU(),
-                        nn::Dropout2d(dropout),
-                        nn::Conv2d(nn::Conv2dOptions(featureChannels*(1<<levels), featureChannels*(1<<levels), 3).padding(1)),
-                        nn::ReLU()
-                    );
+        bottleneck=levelBlock(featureChannels*(1<<(levels-1)), featureChannels*(1<<levels), paddingSize, batchNorm);
         register_module("bottleneck",bottleneck);
 
         for(int level=levels-1; level>=0; level--)
         {
-            upsampling.push_front(nn::ConvTranspose2d(nn::ConvTranspose2dOptions(featureChannels*(1<<(level+1)), featureChannels*(1<<level), 2).stride(2)));
+            upsampling.push_front(upsamplingBlock(featureChannels*(1<<(level+1)), featureChannels*(1<<level), convolutionUpsampling));
             register_module("upsampling"+std::to_string(level),upsampling.front());
 
-            expanding.push_front(nn::Sequential(
-                                       nn::Conv2d(nn::Conv2dOptions(featureChannels*(1<<(level+1)), featureChannels*(1<<level), 3).padding(1)),
-                                       nn::ReLU(),
-                                       nn::Dropout2d(dropout),
-                                       nn::Conv2d(nn::Conv2dOptions(featureChannels*(1<<level), featureChannels*(1<<level), 3).padding(1)),
-                                       nn::ReLU()
-                                   ));
+            expanding.push_front(levelBlock(featureChannels*(1<<(level+1)), featureChannels*(1<<level), paddingSize, batchNorm));
             register_module("expandingBlock"+std::to_string(level),expanding.front());
         }
 
-        output=nn::Conv2d(nn::Conv2dOptions(featureChannels, outChannels, 1));
+        output=torch::nn::Conv2d(torch::nn::Conv2dOptions(featureChannels, outChannels, 1));
         register_module("output",output);
     }
 
     torch::Tensor forward(const torch::Tensor& inputTensor) {
-        std::vector<Tensor> contractingTensor(levels);
-        std::vector<Tensor> downsamplingTensor(levels);
-        Tensor bottleneckTensor;
-        std::vector<Tensor> upsamplingTensor(levels);
-        std::vector<Tensor> expandingTensor(levels);
-        Tensor outputTensor;
+        std::vector<torch::Tensor> contractingTensor(levels);
+        std::vector<torch::Tensor> downsamplingTensor(levels);
+        torch::Tensor bottleneckTensor;
+        std::vector<torch::Tensor> upsamplingTensor(levels);
+        std::vector<torch::Tensor> expandingTensor(levels);
+        torch::Tensor outputTensor;
 
         for(int level=0; level<levels; level++)
         {
@@ -80,44 +74,106 @@ struct UNetImpl : nn::Module {
         for(int level=levels-1; level>=0; level--)
         {
             upsamplingTensor[level]=upsampling[level]->forward(level==levels-1?bottleneckTensor:expandingTensor[level+1]);
-            expandingTensor[level]=expanding[level]->forward(cat({contractingTensor[level],upsamplingTensor[level]},1));
+            if(paddingSize==0) { //apply cropping to the contracting tensor in order to concatenate with the same-level expanding tensor
+                int oldXSize=contractingTensor[level].size(2);
+                int oldYSize=contractingTensor[level].size(3);
+                int newXSize=upsamplingTensor[level].size(2);
+                int newYSize=upsamplingTensor[level].size(3);
+                int startX=oldXSize/2-newXSize/2;
+                int startY=oldYSize/2-newYSize/2;
+                contractingTensor[level]=contractingTensor[level].slice(2,startX,startX+newXSize);
+                contractingTensor[level]=contractingTensor[level].slice(3,startY,startY+newYSize);
+            }
+            expandingTensor[level]=expanding[level]->forward(torch::cat({contractingTensor[level],upsamplingTensor[level]},1));
         }
 
         outputTensor=output->forward(expandingTensor.front());
 
         if(showSizes)
         {
-            std::cout << "input:  " << inputTensor.sizes() << endl;
+            std::cout << "input:  " << inputTensor.sizes() << std::endl;
             for(int level=0; level<levels; level++)
             {
-                for(int i=0; i<level; i++) std::cout << " "; std::cout << " contracting" << level << ":  " << contractingTensor[level].sizes() << endl;
-                for(int i=0; i<level; i++) std::cout << " "; std::cout << " downsampling" << level << ": " << downsamplingTensor[level].sizes() << endl;
+                for(int i=0; i<level; i++) std::cout << " "; std::cout << " contracting" << level << ":  " << contractingTensor[level].sizes() << std::endl;
+                for(int i=0; i<level; i++) std::cout << " "; std::cout << " downsampling" << level << ": " << downsamplingTensor[level].sizes() << std::endl;
             }
-            for(int i=0; i<levels; i++) std::cout << " "; std::cout << " bottleneck:    " << bottleneckTensor.sizes() << endl;
+            for(int i=0; i<levels; i++) std::cout << " "; std::cout << " bottleneck:    " << bottleneckTensor.sizes() << std::endl;
             for(int level=levels-1; level>=0; level--)
             {
-                for(int i=0; i<level; i++) std::cout << " "; std::cout << " upsampling" << level << ":  " << upsamplingTensor[level].sizes() << endl;
-                for(int i=0; i<level; i++) std::cout << " "; std::cout << " expanding" << level << ":   " << expandingTensor[level].sizes() << endl;
+                for(int i=0; i<level; i++) std::cout << " "; std::cout << " upsampling" << level << ":  " << upsamplingTensor[level].sizes() << std::endl;
+                for(int i=0; i<level; i++) std::cout << " "; std::cout << " expanding" << level << ":   " << expandingTensor[level].sizes() << std::endl;
             }
-            std::cout << "output: " << outputTensor.sizes() << endl;
+            std::cout << "output: " << outputTensor.sizes() << std::endl;
             showSizes=false;
         }
 
         return outputTensor;
     }
 
-    //2d size you pass to the model must be a multiple of this
-    int sizeMultiple() {return 1<<levels;}
+    //the 2d size you pass to the model must be a multiple of this
+    int sizeMultiple2d() {return 1<<levels;}
+private:
+    torch::nn::Sequential levelBlock(int inChannels, int outChannels, int paddingSize, bool batchNorm)
+    {
+        if(batchNorm)
+        {
+            return torch::nn::Sequential(
+                        torch::nn::Conv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(paddingSize)),
+                        torch::nn::ReLU(),
+                        torch::nn::BatchNorm2d(outChannels),
+                        torch::nn::Conv2d(torch::nn::Conv2dOptions(outChannels, outChannels, 3).padding(paddingSize)),
+                        torch::nn::ReLU(),
+                        torch::nn::BatchNorm2d(outChannels)
+                    );
+        } else {
+            return torch::nn::Sequential(
+                        torch::nn::Conv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(paddingSize)),
+                        torch::nn::ReLU(),
+                        torch::nn::Conv2d(torch::nn::Conv2dOptions(outChannels, outChannels, 3).padding(paddingSize)),
+                        torch::nn::ReLU()
+                    );
+        }
+    }
+
+    torch::nn::Sequential downsamplingBlock(int channels, bool convolutionDownsampling)
+    {
+        if(convolutionDownsampling)
+        {
+            return torch::nn::Sequential(
+                        torch::nn::Conv2d(torch::nn::Conv2dOptions(channels, channels, 2).stride(2))
+                    );
+        } else {
+            return torch::nn::Sequential(
+                        torch::nn::MaxPool2d(torch::nn::MaxPool2dOptions(2).stride(2))
+                    );
+        }
+    }
+
+    torch::nn::Sequential upsamplingBlock(int inChannels, int outChannels, bool convolutionUpsampling)
+    {
+        if(convolutionUpsampling)
+        {
+            return torch::nn::Sequential(
+                        torch::nn::Upsample(torch::nn::UpsampleOptions().scale_factor({2, 2}).mode(torch::kNearest)),
+                        torch::nn::Conv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(1))
+                    );
+        } else {
+            return torch::nn::Sequential(
+                        torch::nn::ConvTranspose2d(torch::nn::ConvTranspose2dOptions(inChannels, outChannels, 2).stride(2))
+                    );
+        }
+    }
 
     int levels;
+    int paddingSize;
     bool showSizes;
 
-    std::deque<nn::Sequential> contracting;
-    std::deque<nn::MaxPool2d> downsampling;
-    nn::Sequential bottleneck;
-    std::deque<nn::ConvTranspose2d> upsampling;
-    std::deque<nn::Sequential> expanding;
-    nn::Conv2d output{nullptr};
+    std::deque<torch::nn::Sequential> contracting;
+    std::deque<torch::nn::Sequential> downsampling;
+    torch::nn::Sequential bottleneck;
+    std::deque<torch::nn::Sequential> upsampling;
+    std::deque<torch::nn::Sequential> expanding;
+    torch::nn::Conv2d output{nullptr};
 };
 TORCH_MODULE_IMPL(UNet, UNetImpl);
 
