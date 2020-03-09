@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
     {
         optim.zero_grad();
         result = model->forward(source);
-        loss = torch::mse_loss(result, target); //torch::mse_loss(result, target[b]); //torch::nll_loss2d(result, target[b]);
+        loss = torch::mse_loss(result, target);
         loss.backward();
         optim.step();
     }
