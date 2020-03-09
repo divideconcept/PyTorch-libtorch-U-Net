@@ -22,9 +22,10 @@ You can additionally display the size of all internal layers the first time you 
 ## Usage
 
 ```c++
+#include "cunet.h"
+
 int main(int argc, char *argv[])
 {
-    
     int batchSize=64;
     int inChannels=1, outChannels=1;
     int height=256, width=256;
