@@ -6,7 +6,7 @@
 // Robin Lobel, March 2020 - requires libtorch 1.4 and higher - Qt compatible
 // https://github.com/divideconcept/PyTorch-libtorch-U-Net
 //
-// The default parameters produce the original UNet ( https://arxiv.org/pdf/1505.04597.pdf )
+// The default parameters produce the original UNet ( https://arxiv.org/pdf/1505.04597.pdf ) with all improvements activated
 // You can customize the number of in/out channels, the number of hidden feature channels, the number of levels, and activate improvements such as:
 // -Zero-Padding ( Imagenet classification with deep convolutional neural networks, A. Krizhevsky, I. Sutskever, and G. E. Hinton ),
 // -BatchNorm after ReLU ( https://arxiv.org/abs/1502.03167 , https://github.com/ducha-aiki/caffenet-benchmark/blob/master/batchnorm.md ),
@@ -24,8 +24,7 @@
 #endif
 
 struct CUNetImpl : torch::nn::Module {
-    //constructor defaults is the original UNet
-    CUNetImpl(int32_t inChannels=1, int32_t outChannels=1, int32_t featureChannels=64, int32_t levels=4, bool padding=false, bool batchNorm=false, bool convolutionDownsampling=false, bool convolutionUpsampling=false, bool showSizes=false)
+    CUNetImpl(int32_t inChannels=1, int32_t outChannels=1, int32_t featureChannels=64, int32_t levels=4, bool padding=true, bool batchNorm=true, bool convolutionDownsampling=true, bool convolutionUpsampling=true, bool showSizes=false)
     {
         this->levels=levels;
         paddingSize=padding?1:0;
