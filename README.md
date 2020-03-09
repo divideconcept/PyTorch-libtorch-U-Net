@@ -18,3 +18,38 @@ You can additionally display the size of all internal layers the first time you 
 * The number of hidden feature channels can only be determined by experimenting (that's why I would recommend to only tweak that parameter last). Start with a low number of feature channels (8 for instance) because the training will go fast, then double it until the output no longer increase in quality (check the loss value, and visualize the results).
 * The number of levels can be determined by opening your input samples into a viewer, and then downscale by a factor of 2 several times until you can't discriminate any useful feature anymore. The number of downscales correspond to the number of useful levels for the model.
 * Make sure each sample is large enough so that zero-padding (if you use it) does not influence the kernel weights too much - which would impact the quality of the training. For instance for a 2 levels UNet, the size of your samples should be 64x64 minimum (double width and height for each additionnal level).
+
+## Usage
+
+```c++
+int main(int argc, char *argv[])
+{
+    
+    int batchSize=64;
+    int inChannels=1, outChannels=1;
+    int height=256, width=256;
+    
+    CUNet model(inChannels,outChannels);
+    torch::optim::Adam optim(model->parameters(), torch::optim::AdamOptions(1e-3));
+    
+    torch::Tensor source=torch::randn({batchSize,inChannels,height,width});
+    torch::Tensor target=torch::randn({batchSize,outChannels,height,width});
+    torch::Tensor result, loss;
+    
+    model->train();
+    for (int epoch = 0; epoch < 100; epoch++)
+    {
+        optim.zero_grad();
+        result = model->forward(source);
+        loss = torch::mse_loss(result, target); //torch::mse_loss(result, target[b]); //torch::nll_loss2d(result, target[b]);
+        loss.backward();
+        optim.step();
+    }
+    
+    model->eval();
+    torch::Tensor validation=torch::randn({batchSize,inChannels,height,width});
+    torch::Tensor inference = model->forward(validation);
+    
+    return 0;
+}
+```
