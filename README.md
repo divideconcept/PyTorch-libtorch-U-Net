@@ -2,7 +2,7 @@
 A customizable U-Net model for libtorch (PyTorch c++ UNet)  
 Robin Lobel, March 2020 - Requires libtorch 1.4.0 or higher. Qt compatible.
 
-The default parameters produce the original UNet ( https://arxiv.org/pdf/1505.04597.pdf )
+The default parameters produce the original UNet ( https://arxiv.org/pdf/1505.04597.pdf ) with all improvements activated.  
 You can customize the number of in/out channels, the number of hidden feature channels, the number of levels, and activate improvements such as:
 * Zero-Padding ( Imagenet classification with deep convolutional neural networks, A. Krizhevsky, I. Sutskever, and G. E. Hinton ),
 * BatchNorm after ReLU ( https://arxiv.org/abs/1502.03167 , https://github.com/ducha-aiki/caffenet-benchmark/blob/master/batchnorm.md ),
