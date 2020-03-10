@@ -24,13 +24,13 @@
 #endif
 
 struct CUNetImpl : torch::nn::Module {
-    CUNetImpl(int32_t inChannels=1, int32_t outChannels=1, int32_t featureChannels=64, int32_t levels=4, bool padding=true, bool batchNorm=true, bool convolutionDownsampling=true, bool convolutionUpsampling=true, bool showSizes=false)
+    CUNetImpl(int32_t inChannels, int32_t outChannels, int32_t featureChannels=64, int32_t levels=5, bool padding=true, bool batchNorm=true, bool convolutionDownsampling=true, bool convolutionUpsampling=true, bool showSizes=false)
     {
         this->levels=levels;
         paddingSize=padding?1:0;
         this->showSizes=showSizes;
 
-        for(int level=0; level<levels; level++)
+        for(int level=0; level<levels-1; level++)
         {
             contracting.push_back(levelBlock(level==0?inChannels:featureChannels*(1<<(level-1)), featureChannels*(1<<level), paddingSize, batchNorm));
             register_module("contractingBlock"+std::to_string(level),contracting.back());
@@ -39,10 +39,10 @@ struct CUNetImpl : torch::nn::Module {
             register_module("downsampling"+std::to_string(level),downsampling.back());
         }
 
-        bottleneck=levelBlock(featureChannels*(1<<(levels-1)), featureChannels*(1<<levels), paddingSize, batchNorm);
+        bottleneck=levelBlock(featureChannels*(1<<(levels-2)), featureChannels*(1<<(levels-1)), paddingSize, batchNorm);
         register_module("bottleneck",bottleneck);
 
-        for(int level=levels-1; level>=0; level--)
+        for(int level=levels-2; level>=0; level--)
         {
             upsampling.push_front(upsamplingBlock(featureChannels*(1<<(level+1)), featureChannels*(1<<level), convolutionUpsampling));
             register_module("upsampling"+std::to_string(level),upsampling.front());
