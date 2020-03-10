@@ -56,14 +56,14 @@ struct CUNetImpl : torch::nn::Module {
     }
 
     torch::Tensor forward(const torch::Tensor& inputTensor) {
-        std::vector<torch::Tensor> contractingTensor(levels);
-        std::vector<torch::Tensor> downsamplingTensor(levels);
+        std::vector<torch::Tensor> contractingTensor(levels-1);
+        std::vector<torch::Tensor> downsamplingTensor(levels-1);
         torch::Tensor bottleneckTensor;
-        std::vector<torch::Tensor> upsamplingTensor(levels);
-        std::vector<torch::Tensor> expandingTensor(levels);
+        std::vector<torch::Tensor> upsamplingTensor(levels-1);
+        std::vector<torch::Tensor> expandingTensor(levels-1);
         torch::Tensor outputTensor;
 
-        for(int level=0; level<levels; level++)
+        for(int level=0; level<levels-1; level++)
         {
             contractingTensor[level]=contracting[level]->forward(level==0?inputTensor:downsamplingTensor[level-1]);
             downsamplingTensor[level]=downsampling[level]->forward(contractingTensor[level]);
@@ -71,9 +71,9 @@ struct CUNetImpl : torch::nn::Module {
 
         bottleneckTensor=bottleneck->forward(downsamplingTensor.back());
 
-        for(int level=levels-1; level>=0; level--)
+        for(int level=levels-2; level>=0; level--)
         {
-            upsamplingTensor[level]=upsampling[level]->forward(level==levels-1?bottleneckTensor:expandingTensor[level+1]);
+            upsamplingTensor[level]=upsampling[level]->forward(level==levels-2?bottleneckTensor:expandingTensor[level+1]);
             if(paddingSize==0) { //apply cropping to the contracting tensor in order to concatenate with the same-level expanding tensor
                 int oldXSize=contractingTensor[level].size(2);
                 int oldYSize=contractingTensor[level].size(3);
@@ -92,13 +92,13 @@ struct CUNetImpl : torch::nn::Module {
         if(showSizes)
         {
             std::cout << "input:  " << inputTensor.sizes() << std::endl;
-            for(int level=0; level<levels; level++)
+            for(int level=0; level<levels-1; level++)
             {
                 for(int i=0; i<level; i++) std::cout << " "; std::cout << " contracting" << level << ":  " << contractingTensor[level].sizes() << std::endl;
                 for(int i=0; i<level; i++) std::cout << " "; std::cout << " downsampling" << level << ": " << downsamplingTensor[level].sizes() << std::endl;
             }
-            for(int i=0; i<levels; i++) std::cout << " "; std::cout << " bottleneck:    " << bottleneckTensor.sizes() << std::endl;
-            for(int level=levels-1; level>=0; level--)
+            for(int i=0; i<levels-1; i++) std::cout << " "; std::cout << " bottleneck:    " << bottleneckTensor.sizes() << std::endl;
+            for(int level=levels-2; level>=0; level--)
             {
                 for(int i=0; i<level; i++) std::cout << " "; std::cout << " upsampling" << level << ":  " << upsamplingTensor[level].sizes() << std::endl;
                 for(int i=0; i<level; i++) std::cout << " "; std::cout << " expanding" << level << ":   " << expandingTensor[level].sizes() << std::endl;
@@ -111,7 +111,7 @@ struct CUNetImpl : torch::nn::Module {
     }
 
     //the 2d size you pass to the model must be a multiple of this
-    int sizeMultiple2d() {return 1<<levels;}
+    int sizeMultiple2d() {return 1<<(levels-1);}
 private:
     torch::nn::Sequential levelBlock(int inChannels, int outChannels, int paddingSize, bool batchNorm)
     {
