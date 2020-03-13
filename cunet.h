@@ -12,6 +12,7 @@
 // -BatchNorm after ReLU ( https://arxiv.org/abs/1502.03167 , https://github.com/ducha-aiki/caffenet-benchmark/blob/master/batchnorm.md ),
 // -Strided Convolution instead of Strided Max Pooling for Downsampling ( https://arxiv.org/pdf/1701.03056.pdf , https://arxiv.org/pdf/1412.6806.pdf , https://arxiv.org/pdf/1606.04797.pdf ),
 // -Resize Convolution instead of Strided Deconvolution for Upsampling ( https://distill.pub/2016/deconv-checkerboard/ , https://www.kaggle.com/mpalermo/remove-grideffect-on-generated-images/notebook , https://arxiv.org/pdf/1806.02658.pdf )
+// -Partial Convolution to fix Zero-Padding ( https://arxiv.org/pdf/1811.11718.pdf , https://github.com/NVIDIA/partialconv )
 // You can additionally display the size of all internal layers the first time you call forward()
 
 //Qt compatibility
@@ -23,8 +24,10 @@
     #define slots Q_SLOTS
 #endif
 
+#include "partialconv.h"
+
 struct CUNetImpl : torch::nn::Module {
-    CUNetImpl(int32_t inChannels, int32_t outChannels, int32_t featureChannels=64, int32_t levels=5, bool padding=true, bool batchNorm=true, bool convolutionDownsampling=true, bool convolutionUpsampling=true, bool showSizes=false)
+    CUNetImpl(int32_t inChannels, int32_t outChannels, int32_t featureChannels=64, int32_t levels=5, bool padding=true, bool batchNorm=true, bool convolutionDownsampling=true, bool convolutionUpsampling=true, bool partialConvolution=true, bool showSizes=false)
     {
         this->levels=levels;
         paddingSize=padding?1:0;
@@ -32,22 +35,22 @@ struct CUNetImpl : torch::nn::Module {
 
         for(int level=0; level<levels-1; level++)
         {
-            contracting.push_back(levelBlock(level==0?inChannels:featureChannels*(1<<(level-1)), featureChannels*(1<<level), paddingSize, batchNorm));
+            contracting.push_back(levelBlock(level==0?inChannels:featureChannels*(1<<(level-1)), featureChannels*(1<<level), paddingSize, batchNorm, partialConvolution));
             register_module("contractingBlock"+std::to_string(level),contracting.back());
 
             downsampling.push_back(downsamplingBlock(featureChannels*(1<<level),convolutionDownsampling));
             register_module("downsampling"+std::to_string(level),downsampling.back());
         }
 
-        bottleneck=levelBlock(featureChannels*(1<<(levels-2)), featureChannels*(1<<(levels-1)), paddingSize, batchNorm);
+        bottleneck=levelBlock(featureChannels*(1<<(levels-2)), featureChannels*(1<<(levels-1)), paddingSize, batchNorm, partialConvolution);
         register_module("bottleneck",bottleneck);
 
         for(int level=levels-2; level>=0; level--)
         {
-            upsampling.push_front(upsamplingBlock(featureChannels*(1<<(level+1)), featureChannels*(1<<level), convolutionUpsampling));
+            upsampling.push_front(upsamplingBlock(featureChannels*(1<<(level+1)), featureChannels*(1<<level), convolutionUpsampling, partialConvolution));
             register_module("upsampling"+std::to_string(level),upsampling.front());
 
-            expanding.push_front(levelBlock(featureChannels*(1<<(level+1)), featureChannels*(1<<level), paddingSize, batchNorm));
+            expanding.push_front(levelBlock(featureChannels*(1<<(level+1)), featureChannels*(1<<level), paddingSize, batchNorm, partialConvolution));
             register_module("expandingBlock"+std::to_string(level),expanding.front());
         }
 
@@ -113,25 +116,43 @@ struct CUNetImpl : torch::nn::Module {
     //the 2d size you pass to the model must be a multiple of this
     int sizeMultiple2d() {return 1<<(levels-1);}
 private:
-    torch::nn::Sequential levelBlock(int inChannels, int outChannels, int paddingSize, bool batchNorm)
+    torch::nn::Sequential levelBlock(int inChannels, int outChannels, int paddingSize, bool batchNorm, bool partialConvolution)
     {
         if(batchNorm)
         {
-            return torch::nn::Sequential(
-                        torch::nn::Conv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(paddingSize)),
-                        torch::nn::ReLU(),
-                        torch::nn::BatchNorm2d(outChannels),
-                        torch::nn::Conv2d(torch::nn::Conv2dOptions(outChannels, outChannels, 3).padding(paddingSize)),
-                        torch::nn::ReLU(),
-                        torch::nn::BatchNorm2d(outChannels)
-                    );
+            if(partialConvolution)
+                return torch::nn::Sequential(
+                            PartialConv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(paddingSize)),
+                            torch::nn::ReLU(),
+                            torch::nn::BatchNorm2d(outChannels),
+                            PartialConv2d(torch::nn::Conv2dOptions(outChannels, outChannels, 3).padding(paddingSize)),
+                            torch::nn::ReLU(),
+                            torch::nn::BatchNorm2d(outChannels)
+                        );
+            else
+                return torch::nn::Sequential(
+                            torch::nn::Conv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(paddingSize)),
+                            torch::nn::ReLU(),
+                            torch::nn::BatchNorm2d(outChannels),
+                            torch::nn::Conv2d(torch::nn::Conv2dOptions(outChannels, outChannels, 3).padding(paddingSize)),
+                            torch::nn::ReLU(),
+                            torch::nn::BatchNorm2d(outChannels)
+                        );
         } else {
-            return torch::nn::Sequential(
-                        torch::nn::Conv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(paddingSize)),
-                        torch::nn::ReLU(),
-                        torch::nn::Conv2d(torch::nn::Conv2dOptions(outChannels, outChannels, 3).padding(paddingSize)),
-                        torch::nn::ReLU()
-                    );
+            if(partialConvolution)
+                return torch::nn::Sequential(
+                            torch::nn::Conv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(paddingSize)),
+                            torch::nn::ReLU(),
+                            torch::nn::Conv2d(torch::nn::Conv2dOptions(outChannels, outChannels, 3).padding(paddingSize)),
+                            torch::nn::ReLU()
+                        );
+            else
+                return torch::nn::Sequential(
+                            PartialConv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(paddingSize)),
+                            torch::nn::ReLU(),
+                            PartialConv2d(torch::nn::Conv2dOptions(outChannels, outChannels, 3).padding(paddingSize)),
+                            torch::nn::ReLU()
+                        );
         }
     }
 
@@ -149,14 +170,20 @@ private:
         }
     }
 
-    torch::nn::Sequential upsamplingBlock(int inChannels, int outChannels, bool convolutionUpsampling)
+    torch::nn::Sequential upsamplingBlock(int inChannels, int outChannels, bool convolutionUpsampling, bool partialConvolution)
     {
         if(convolutionUpsampling)
         {
-            return torch::nn::Sequential(
-                        torch::nn::Upsample(torch::nn::UpsampleOptions().scale_factor({2, 2}).mode(torch::kNearest)),
-                        torch::nn::Conv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(1))
-                    );
+            if(partialConvolution)
+                return torch::nn::Sequential(
+                            torch::nn::Upsample(torch::nn::UpsampleOptions().scale_factor({2, 2}).mode(torch::kNearest)),
+                            PartialConv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(1))
+                        );
+            else
+                return torch::nn::Sequential(
+                            torch::nn::Upsample(torch::nn::UpsampleOptions().scale_factor({2, 2}).mode(torch::kNearest)),
+                            torch::nn::Conv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(1))
+                        );
         } else {
             return torch::nn::Sequential(
                         torch::nn::ConvTranspose2d(torch::nn::ConvTranspose2dOptions(inChannels, outChannels, 2).stride(2))
