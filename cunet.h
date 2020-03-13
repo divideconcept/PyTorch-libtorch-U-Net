@@ -141,16 +141,16 @@ private:
         } else {
             if(partialConvolution)
                 return torch::nn::Sequential(
-                            torch::nn::Conv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(paddingSize)),
+                            PartialConv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(paddingSize)),
                             torch::nn::ReLU(),
-                            torch::nn::Conv2d(torch::nn::Conv2dOptions(outChannels, outChannels, 3).padding(paddingSize)),
+                            PartialConv2d(torch::nn::Conv2dOptions(outChannels, outChannels, 3).padding(paddingSize)),
                             torch::nn::ReLU()
                         );
             else
                 return torch::nn::Sequential(
-                            PartialConv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(paddingSize)),
+                            torch::nn::Conv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(paddingSize)),
                             torch::nn::ReLU(),
-                            PartialConv2d(torch::nn::Conv2dOptions(outChannels, outChannels, 3).padding(paddingSize)),
+                            torch::nn::Conv2d(torch::nn::Conv2dOptions(outChannels, outChannels, 3).padding(paddingSize)),
                             torch::nn::ReLU()
                         );
         }
