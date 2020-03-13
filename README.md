@@ -8,6 +8,7 @@ You can customize the number of in/out channels, the number of hidden feature ch
 * BatchNorm after ReLU ( https://arxiv.org/abs/1502.03167 , https://github.com/ducha-aiki/caffenet-benchmark/blob/master/batchnorm.md ),
 * Strided Convolution instead of Strided Max Pooling for Downsampling ( https://arxiv.org/pdf/1701.03056.pdf , https://arxiv.org/pdf/1412.6806.pdf , https://arxiv.org/pdf/1606.04797.pdf ),
 * Resize Convolution instead of Strided Deconvolution for Upsampling ( https://distill.pub/2016/deconv-checkerboard/ , https://www.kaggle.com/mpalermo/remove-grideffect-on-generated-images/notebook , https://arxiv.org/pdf/1806.02658.pdf )
+* Partial Convolution to fix Zero-Padding ( https://arxiv.org/pdf/1811.11718.pdf , https://github.com/NVIDIA/partialconv )
 
 You can additionally display the size of all internal layers the first time you call forward()
 
