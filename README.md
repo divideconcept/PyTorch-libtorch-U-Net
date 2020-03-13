@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
 {
     int batchSize=64;
     int inChannels=1, outChannels=1;
-    int height=256, width=256;
+    int height=512, width=512;
     
     CUNet model(inChannels,outChannels);
     torch::optim::Adam optim(model->parameters(), torch::optim::AdamOptions(1e-3));
