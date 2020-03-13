@@ -68,7 +68,8 @@ public:
                 update_mask = torch::nn::functional::conv2d(mask, weight_maskUpdater, torch::nn::functional::Conv2dFuncOptions().bias(torch::Tensor()).stride(options.stride()).padding(options.padding()).dilation(options.dilation()).groups(1));
 
                 // for mixed precision training, change 1e-8 to 1e-6
-                mask_ratio = slide_winsize/(update_mask + 1e-8);
+
+                mask_ratio = slide_winsize/(update_mask + (mask.type().scalarType()==torch::kFloat?1e-8:1e-6));
                 update_mask = torch::clamp(update_mask, 0, 1);
                 mask_ratio = torch::mul(mask_ratio, update_mask);
             }

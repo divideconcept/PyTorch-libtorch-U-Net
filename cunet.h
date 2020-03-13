@@ -6,11 +6,11 @@
 // Robin Lobel, March 2020 - requires libtorch 1.4 and higher - Qt compatible
 // https://github.com/divideconcept/PyTorch-libtorch-U-Net
 //
-// The default parameters produce the original UNet ( https://arxiv.org/pdf/1505.04597.pdf ) with all improvements activated
+// The default parameters produce the original UNet ( https://arxiv.org/pdf/1505.04597.pdf ) with all improvements activated, resulting in a fully convolutional network with kernel size 3x3
 // You can customize the number of in/out channels, the number of hidden feature channels, the number of levels, and activate improvements such as:
 // -Zero-Padding ( Imagenet classification with deep convolutional neural networks, A. Krizhevsky, I. Sutskever, and G. E. Hinton ),
 // -BatchNorm after ReLU ( https://arxiv.org/abs/1502.03167 , https://github.com/ducha-aiki/caffenet-benchmark/blob/master/batchnorm.md ),
-// -Strided Convolution instead of Strided Max Pooling for Downsampling ( https://arxiv.org/pdf/1701.03056.pdf , https://arxiv.org/pdf/1412.6806.pdf , https://arxiv.org/pdf/1606.04797.pdf ),
+// -Strided Convolution instead of Strided Max Pooling for Downsampling ( https://arxiv.org/pdf/1412.6806.pdf, https://arxiv.org/pdf/1701.03056.pdf , https://arxiv.org/pdf/1606.04797.pdf ),
 // -Resize Convolution instead of Strided Deconvolution for Upsampling ( https://distill.pub/2016/deconv-checkerboard/ , https://www.kaggle.com/mpalermo/remove-grideffect-on-generated-images/notebook , https://arxiv.org/pdf/1806.02658.pdf )
 // -Partial Convolution to fix Zero-Padding ( https://arxiv.org/pdf/1811.11718.pdf , https://github.com/NVIDIA/partialconv )
 // You can additionally display the size of all internal layers the first time you call forward()
@@ -38,7 +38,7 @@ struct CUNetImpl : torch::nn::Module {
             contracting.push_back(levelBlock(level==0?inChannels:featureChannels*(1<<(level-1)), featureChannels*(1<<level), paddingSize, batchNorm, partialConvolution));
             register_module("contractingBlock"+std::to_string(level),contracting.back());
 
-            downsampling.push_back(downsamplingBlock(featureChannels*(1<<level),convolutionDownsampling));
+            downsampling.push_back(downsamplingBlock(featureChannels*(1<<level),convolutionDownsampling,partialConvolution));
             register_module("downsampling"+std::to_string(level),downsampling.back());
         }
 
@@ -156,13 +156,18 @@ private:
         }
     }
 
-    torch::nn::Sequential downsamplingBlock(int channels, bool convolutionDownsampling)
+    torch::nn::Sequential downsamplingBlock(int channels, bool convolutionDownsampling, bool partialConvolution)
     {
         if(convolutionDownsampling)
         {
-            return torch::nn::Sequential(
-                        torch::nn::Conv2d(torch::nn::Conv2dOptions(channels, channels, 2).stride(2))
-                    );
+            if(partialConvolution)
+                return torch::nn::Sequential(
+                            PartialConv2d(torch::nn::Conv2dOptions(channels, channels, 3).stride(2).padding(paddingSize))
+                        );
+            else
+                return torch::nn::Sequential(
+                            torch::nn::Conv2d(torch::nn::Conv2dOptions(channels, channels, 3).stride(2).padding(paddingSize))
+                        );
         } else {
             return torch::nn::Sequential(
                         torch::nn::MaxPool2d(torch::nn::MaxPool2dOptions(2).stride(2))
@@ -177,12 +182,12 @@ private:
             if(partialConvolution)
                 return torch::nn::Sequential(
                             torch::nn::Upsample(torch::nn::UpsampleOptions().scale_factor({2, 2}).mode(torch::kNearest)),
-                            PartialConv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(1))
+                            PartialConv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(paddingSize))
                         );
             else
                 return torch::nn::Sequential(
                             torch::nn::Upsample(torch::nn::UpsampleOptions().scale_factor({2, 2}).mode(torch::kNearest)),
-                            torch::nn::Conv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(1))
+                            torch::nn::Conv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(paddingSize))
                         );
         } else {
             return torch::nn::Sequential(
