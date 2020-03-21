@@ -6,13 +6,13 @@
 // Robin Lobel, March 2020 - requires libtorch 1.4 and higher - Qt compatible
 // https://github.com/divideconcept/PyTorch-libtorch-U-Net
 //
-// The default parameters produce the original UNet ( https://arxiv.org/pdf/1505.04597.pdf ) with all improvements activated, resulting in a fully convolutional network with kernel size 3x3
+// The default parameters produce the original UNet ( https://arxiv.org/pdf/1505.04597.pdf ) with all core improvements activated, resulting in a fully convolutional network with kernel size 3x3
 // You can customize the number of in/out channels, the number of hidden feature channels, the number of levels, and activate improvements such as:
-// -Zero-Padding ( Imagenet classification with deep convolutional neural networks, A. Krizhevsky, I. Sutskever, and G. E. Hinton ),
-// -BatchNorm after ReLU ( https://arxiv.org/abs/1502.03167 , https://github.com/ducha-aiki/caffenet-benchmark/blob/master/batchnorm.md ),
-// -Strided Convolution instead of Strided Max Pooling for Downsampling ( https://arxiv.org/pdf/1412.6806.pdf, https://arxiv.org/pdf/1701.03056.pdf , https://arxiv.org/pdf/1606.04797.pdf ),
+// -Zero-Padding ( Imagenet classification with deep convolutional neural networks, A. Krizhevsky, I. Sutskever, and G. E. Hinton )
+// -Strided Convolution instead of Strided Max Pooling for Downsampling ( https://arxiv.org/pdf/1412.6806.pdf, https://arxiv.org/pdf/1701.03056.pdf , https://arxiv.org/pdf/1606.04797.pdf )
 // -Resize Convolution instead of Strided Deconvolution for Upsampling ( https://distill.pub/2016/deconv-checkerboard/ , https://www.kaggle.com/mpalermo/remove-grideffect-on-generated-images/notebook , https://arxiv.org/pdf/1806.02658.pdf )
-// -Partial Convolution to fix Zero-Padding ( https://arxiv.org/pdf/1811.11718.pdf , https://github.com/NVIDIA/partialconv )
+// -Partial Convolution to fix Zero-Padding bias ( https://arxiv.org/pdf/1811.11718.pdf , https://github.com/NVIDIA/partialconv )
+// -BatchNorm ( https://arxiv.org/abs/1502.03167 )
 // You can additionally display the size of all internal layers the first time you call forward()
 
 //Qt compatibility
@@ -27,7 +27,7 @@
 #include "partialconv.h"
 
 struct CUNetImpl : torch::nn::Module {
-    CUNetImpl(int32_t inChannels, int32_t outChannels, int32_t featureChannels=64, int32_t levels=5, bool padding=true, bool batchNorm=true, bool convolutionDownsampling=true, bool convolutionUpsampling=true, bool partialConvolution=true, bool showSizes=false)
+    CUNetImpl(int32_t inChannels, int32_t outChannels, int32_t featureChannels=64, int32_t levels=5, bool padding=true, bool convolutionDownsampling=true, bool convolutionUpsampling=true, bool partialConvolution=true, bool batchNorm=false, bool showSizes=false)
     {
         this->levels=levels;
         paddingSize=padding?1:0;
@@ -123,20 +123,20 @@ private:
             if(partialConvolution)
                 return torch::nn::Sequential(
                             PartialConv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(paddingSize)),
-                            torch::nn::ReLU(),
                             torch::nn::BatchNorm2d(outChannels),
-                            PartialConv2d(torch::nn::Conv2dOptions(outChannels, outChannels, 3).padding(paddingSize)),
                             torch::nn::ReLU(),
-                            torch::nn::BatchNorm2d(outChannels)
+                            PartialConv2d(torch::nn::Conv2dOptions(outChannels, outChannels, 3).padding(paddingSize)),
+                            torch::nn::BatchNorm2d(outChannels),
+                            torch::nn::ReLU()
                         );
             else
                 return torch::nn::Sequential(
                             torch::nn::Conv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(paddingSize)),
-                            torch::nn::ReLU(),
                             torch::nn::BatchNorm2d(outChannels),
-                            torch::nn::Conv2d(torch::nn::Conv2dOptions(outChannels, outChannels, 3).padding(paddingSize)),
                             torch::nn::ReLU(),
-                            torch::nn::BatchNorm2d(outChannels)
+                            torch::nn::Conv2d(torch::nn::Conv2dOptions(outChannels, outChannels, 3).padding(paddingSize)),
+                            torch::nn::BatchNorm2d(outChannels),
+                            torch::nn::ReLU()
                         );
         } else {
             if(partialConvolution)

@@ -66,10 +66,13 @@ public:
 
                 update_mask = torch::nn::functional::conv2d(mask, weight_maskUpdater, torch::nn::functional::Conv2dFuncOptions().bias(torch::Tensor()).stride(options.stride()).padding(options.padding()).dilation(options.dilation()).groups(1));
 
-                // for mixed precision training, change 1e-8 to 1e-6
-                mask_ratio = slide_winsize/(update_mask + (mask.type().scalarType()==torch::kFloat?1e-8:1e-6));
-                update_mask = torch::clamp(update_mask, 0, 1);
-                mask_ratio = torch::mul(mask_ratio, update_mask);
+                if(!mask_in.defined())
+                    mask_ratio = slide_winsize/update_mask;
+                else {
+                    mask_ratio = slide_winsize/(update_mask + (mask.type().scalarType()==torch::kFloat?1e-8:1e-6));
+                    update_mask = torch::clamp(update_mask, 0, 1);
+                    mask_ratio = torch::mul(mask_ratio, update_mask);
+                }
             }
         }
 
@@ -80,7 +83,7 @@ public:
         {
             torch::Tensor bias_view = this->bias.view({1, options.out_channels(), 1, 1});
             output = torch::mul(raw_out - bias_view, mask_ratio) + bias_view;
-            output = torch::mul(output, update_mask);
+            if(mask_in.defined()) output = torch::mul(output, update_mask);
         } else
             output = torch::mul(raw_out, mask_ratio);
 
