@@ -2,13 +2,13 @@
 A customizable U-Net model for libtorch (PyTorch c++ UNet)  
 Robin Lobel, March 2020 - Requires libtorch 1.4.0 or higher. Qt compatible.
 
-The default parameters produce the original UNet ( https://arxiv.org/pdf/1505.04597.pdf ) with all improvements activated, resulting in a fully convolutional network with kernel size 3x3.  
+The default parameters produce the original UNet ( https://arxiv.org/pdf/1505.04597.pdf ) with all core improvements activated, resulting in a fully convolutional network with kernel size 3x3.  
 You can customize the number of in/out channels, the number of hidden feature channels, the number of levels, and activate improvements such as:
 * Zero-Padding ( Imagenet classification with deep convolutional neural networks, A. Krizhevsky, I. Sutskever, and G. E. Hinton ) which allows the same 2d size for input and output
-* BatchNorm after ReLU ( https://arxiv.org/abs/1502.03167 , https://github.com/ducha-aiki/caffenet-benchmark/blob/master/batchnorm.md ) which accelerates training
 * Strided Convolution instead of Strided Max Pooling for Downsampling ( https://arxiv.org/pdf/1412.6806.pdf , https://arxiv.org/pdf/1701.03056.pdf , https://arxiv.org/pdf/1606.04797.pdf ) which improve the quality of training and inference
 * Resize Convolution instead of Strided Deconvolution for Upsampling ( https://distill.pub/2016/deconv-checkerboard/ , https://www.kaggle.com/mpalermo/remove-grideffect-on-generated-images/notebook , https://arxiv.org/pdf/1806.02658.pdf ) which eliminates checkerboard pattern artefacts
 * Partial Convolution ( https://arxiv.org/pdf/1811.11718.pdf , https://github.com/NVIDIA/partialconv ) which fixes the errors introduced by zero-padding
+* BatchNorm ( https://arxiv.org/abs/1502.03167 ) which can accelerate training in some cases
 
 You can additionally display the size of all internal layers the first time you use the network
 
