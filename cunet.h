@@ -181,12 +181,12 @@ private:
         {
             if(partialConvolution)
                 return torch::nn::Sequential(
-                            torch::nn::Upsample(torch::nn::UpsampleOptions().scale_factor({2, 2}).mode(torch::kNearest)),
+                            torch::nn::Upsample(torch::nn::UpsampleOptions().scale_factor(std::vector<double>({2, 2})).mode(torch::kNearest)),
                             PartialConv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(paddingSize))
                         );
             else
                 return torch::nn::Sequential(
-                            torch::nn::Upsample(torch::nn::UpsampleOptions().scale_factor({2, 2}).mode(torch::kNearest)),
+                            torch::nn::Upsample(torch::nn::UpsampleOptions().scale_factor(std::vector<double>({2, 2})).mode(torch::kNearest)),
                             torch::nn::Conv2d(torch::nn::Conv2dOptions(inChannels, outChannels, 3).padding(paddingSize))
                         );
         } else {
