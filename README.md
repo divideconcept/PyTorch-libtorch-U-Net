@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
     int inChannels=3, outChannels=3;
     int height=512, width=512;
     
-    CUNet model(inChannels,outChannels);
+    CUNet2d model(inChannels,outChannels);
     torch::optim::Adam optim(model->parameters(), torch::optim::AdamOptions(1e-3));
     
     torch::Tensor source=torch::randn({batchSize,inChannels,height,width});
