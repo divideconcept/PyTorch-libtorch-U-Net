@@ -1,9 +1,11 @@
-# PyTorch/libtorch Customizable U-Net  
-A customizable U-Net model for libtorch (PyTorch c++ UNet)  
+# PyTorch/libtorch Customizable 1D/2D U-Net  
+A customizable 1D/2D U-Net model for libtorch (PyTorch c++ UNet)  
 Robin Lobel, March 2020 - Requires libtorch 1.4.0 or higher. Qt compatible.
 
-The default parameters produce the original UNet ( https://arxiv.org/pdf/1505.04597.pdf ) with all core improvements activated, resulting in a fully convolutional network with kernel size 3x3.  
-You can customize the number of in/out channels, the number of hidden feature channels, the number of levels, and activate improvements such as:
+The default parameters produce the original 2D UNet ( https://arxiv.org/pdf/1505.04597.pdf ) with all core improvements activated, resulting in a fully convolutional 2D network.  
+The default parameters for the 1D Unet are inspired by the Wave UNet ( https://arxiv.org/pdf/1806.03185.pdf ) with all core improvements activated, resulting in a fully convolutional 1D network.
+
+You can customize the number of in/out channels, the number of hidden feature channels, the number of levels, the size of the kernel, and activate improvements such as:
 * Zero-Padding ( Imagenet classification with deep convolutional neural networks, A. Krizhevsky, I. Sutskever, and G. E. Hinton ) which allows the same 2d size for input and output
 * Strided Convolution instead of Strided Max Pooling for Downsampling ( https://arxiv.org/pdf/1412.6806.pdf , https://arxiv.org/pdf/1701.03056.pdf , https://arxiv.org/pdf/1606.04797.pdf ) which improve the quality of training and inference
 * Resize Convolution instead of Strided Deconvolution for Upsampling ( https://distill.pub/2016/deconv-checkerboard/ , https://www.kaggle.com/mpalermo/remove-grideffect-on-generated-images/notebook , https://arxiv.org/pdf/1806.02658.pdf ) which eliminates checkerboard pattern artefacts
