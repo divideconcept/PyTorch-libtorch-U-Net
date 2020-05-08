@@ -21,7 +21,7 @@ You can additionally display the size of all internal layers the first time you 
 * The number of hidden feature channels can only be determined by experimenting (that's why I would recommend to only tweak that parameter last). Start with a low number of feature channels (8 for instance) because the training will go fast, then double it until the output no longer increase in quality (check the loss value, and visualize the results).
 * The number of levels can be determined by opening your input samples into a viewer, and then downscale by a factor of 2 several times until you can't discriminate any useful feature anymore. The number of downscales correspond to the number of useful levels for the model.
 
-## Usage
+## Usage (2D UNet)
 
 ```c++
 #include "cunet.h"
@@ -51,6 +51,42 @@ int main(int argc, char *argv[])
     
     model->eval();
     torch::Tensor validation=torch::randn({batchSize,inChannels,height,width});
+    torch::Tensor inference = model(validation);
+    
+    return 0;
+}
+```
+
+## Usage (1D UNet)
+
+```c++
+#include "cunet.h"
+
+int main(int argc, char *argv[])
+{
+    int batchSize=16;
+    int inChannels=2, outChannels=2;
+    int size=2048;
+    
+    CUNet1d model(inChannels,outChannels);
+    torch::optim::Adam optim(model->parameters(), torch::optim::AdamOptions(1e-3));
+    
+    torch::Tensor source=torch::randn({batchSize,inChannels,size});
+    torch::Tensor target=torch::randn({batchSize,outChannels,size});
+    torch::Tensor result, loss;
+    
+    model->train();
+    for (int epoch = 0; epoch < 100; epoch++)
+    {
+        optim.zero_grad();
+        result = model(source);
+        loss = torch::mse_loss(result, target);
+        loss.backward();
+        optim.step();
+    }
+    
+    model->eval();
+    torch::Tensor validation=torch::randn({batchSize,inChannels,size});
     torch::Tensor inference = model(validation);
     
     return 0;
