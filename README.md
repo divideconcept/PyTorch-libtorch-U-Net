@@ -1,6 +1,6 @@
 # PyTorch/libtorch Customizable 1D/2D U-Net  
 A customizable 1D/2D U-Net model for libtorch (PyTorch c++ UNet)  
-Robin Lobel, March 2020 - Requires libtorch 1.4.0 or higher. Qt compatible.
+Robin Lobel, March 2020 - Requires libtorch 1.4.0 or higher. CPU & CUDA compatible. Qt compatible.
 
 The default parameters produce the original 2D UNet ( https://arxiv.org/pdf/1505.04597.pdf ) with all core improvements activated, resulting in a fully convolutional 2D network.  
 The default parameters for the 1D Unet are inspired by the Wave UNet ( https://arxiv.org/pdf/1806.03185.pdf ) with all core improvements activated, resulting in a fully convolutional 1D network.
