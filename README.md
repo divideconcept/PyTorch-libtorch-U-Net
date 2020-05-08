@@ -6,11 +6,11 @@ The default parameters produce the original 2D UNet ( https://arxiv.org/pdf/1505
 The default parameters for the 1D Unet are inspired by the Wave UNet ( https://arxiv.org/pdf/1806.03185.pdf ) with all core improvements activated, resulting in a fully convolutional 1D network.
 
 You can customize the number of in/out channels, the number of hidden feature channels, the number of levels, the size of the kernel, and activate improvements such as:
-* Zero-Padding ( Imagenet classification with deep convolutional neural networks, A. Krizhevsky, I. Sutskever, and G. E. Hinton ) which allows the same 2d size for input and output
+* Zero-Padding ( Imagenet classification with deep convolutional neural networks, A. Krizhevsky, I. Sutskever, and G. E. Hinton ) which allows the same size for input and output
 * Strided Convolution instead of Strided Max Pooling for Downsampling ( https://arxiv.org/pdf/1412.6806.pdf , https://arxiv.org/pdf/1701.03056.pdf , https://arxiv.org/pdf/1606.04797.pdf ) which improve the quality of training and inference
 * Resize Convolution instead of Strided Deconvolution for Upsampling ( https://distill.pub/2016/deconv-checkerboard/ , https://www.kaggle.com/mpalermo/remove-grideffect-on-generated-images/notebook , https://arxiv.org/pdf/1806.02658.pdf ) which eliminates checkerboard pattern artefacts
-* Partial Convolution ( https://arxiv.org/pdf/1811.11718.pdf , https://github.com/NVIDIA/partialconv ) which fixes the errors introduced by zero-padding
-* BatchNorm ( https://arxiv.org/abs/1502.03167 ) which can accelerate training in some cases
+* Partial Convolution ( https://arxiv.org/pdf/1811.11718.pdf , https://github.com/NVIDIA/partialconv ) which correct the errors introduced by zero-padding
+* BatchNorm ( https://arxiv.org/abs/1502.03167 ) which can accelerate or stabilize training in some cases
 
 You can additionally display the size of all internal layers the first time you use the network
 
